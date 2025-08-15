@@ -1,0 +1,79 @@
+/* styles.css */
+
+/* General Body Styling */
+body {
+    font-family: 'Inter', sans-serif;
+    color: #333;
+    background-color: #f0f2f6;
+}
+
+/* Import Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+/* Main container */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    padding-left: 3rem;
+    padding-right: 3rem;
+}
+
+/* Headings and Titles */
+h1, h2, h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    color: #1E3A8A; /* Dark Blue */
+}
+
+/* Buttons */
+.stButton>button {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    border: 2px solid #1E3A8A;
+    background-color: #1E3A8A;
+    color: white;
+    transition: all 0.2s ease-in-out;
+}
+
+.stButton>button:hover {
+    background-color: white;
+    color: #1E3A8A;
+    border-color: #1E3A8A;
+}
+
+.stButton>button:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+/* Text Inputs and Selectboxes */
+.stTextInput input, .stSelectbox div[data-baseweb="select"] > div {
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+
+.stTextArea textarea {
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    height: 150px;
+}
+
+/* Progress Bar */
+.stProgress > div > div > div > div {
+    background-color: #1E3A8A;
+}
+
+/* Dataframe/Table styling */
+.stDataFrame {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .main .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
