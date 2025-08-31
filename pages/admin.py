@@ -167,28 +167,16 @@ def show_quiz_configuration():
     
     # Global settings
     with st.expander("⚙️ Global Settings", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            passing_score = st.number_input(
-                "Passing Score (out of 10):",
-                min_value=1,
-                max_value=10,
-                value=config.get("passing_score", 9),
-                help="Minimum score required to pass"
-            )
-        with col2:
-            time_limit = st.number_input(
-                "Time Limit per Question (seconds):",
-                min_value=30,
-                max_value=300,
-                value=config.get("time_limit", 60),
-                step=10,
-                help="Time allowed to answer each question"
-            )
+        passing_score = st.number_input(
+            "Passing Score (out of 10):",
+            min_value=1,
+            max_value=10,
+            value=config.get("passing_score", 9),
+            help="Minimum score required to pass"
+        )
         
         if st.button("💾 Save Global Settings", type="primary"):
             config["passing_score"] = passing_score
-            config["time_limit"] = time_limit
             if save_quiz_config(config):
                 st.success("✅ Global settings saved!")
     
@@ -431,45 +419,50 @@ def show_question_editor(question, question_num):
 def preview_quiz():
     """Preview how the quiz will appear to participants."""
     st.subheader("Quiz Preview")
-    st.info("This shows how the quiz will appear to participants")
+    st.info("This shows how all questions will appear to participants (Note: In actual quiz, only one random question is shown)")
     
-    # Load configuration
+    # Load configuration and questions
     config = load_quiz_config()
+    questions = get_all_questions()
     
-    # Show preview container
-    with st.container():
-        st.markdown("---")
-        st.header(config.get("scenario_title", "Safety Scenario Question"))
-        st.write(config.get("question_text", "No question configured"))
+    if not questions:
+        st.warning("No questions configured. Please add questions in the Quiz Configuration tab.")
+        return
+    
+    # Show all questions in continuous scroll
+    for i, question in enumerate(questions, 1):
+        question_id = question.get("id", "")
         
-        # Show image if enabled and exists
-        if config.get("image_enabled", True):
-            saved_image = load_scenario_image()
-            if saved_image:
-                st.image(saved_image, caption="Safety Scenario", use_column_width=True)
-            else:
-                st.warning("No scenario image saved. Generate one in the Quiz Configuration tab.")
-        
-        # Show mock answer area
-        st.text_area("Your Answer:", placeholder="Participants will type their answer here...", disabled=True)
-        
-        # Show timer and submit button (disabled)
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.progress(0.8)
-            st.markdown(f"**Time Remaining: {int(config.get('time_limit', 60) * 0.8)} seconds**")
-        with col2:
-            st.button("Submit Answer", disabled=True)
-        
-        st.markdown("---")
-        
-        # Show configuration summary
-        st.markdown("### Current Settings")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Passing Score", f"{config.get('passing_score', 9)}/10")
-        with col2:
-            st.metric("Time Limit", f"{config.get('time_limit', 60)} seconds")
+        # Show preview container for each question
+        with st.container():
+            st.markdown("---")
+            st.markdown(f"### Question {i}")
+            st.header(question.get("scenario_title", "Safety Scenario Question"))
+            st.write(question.get("question_text", "No question text configured"))
+            
+            # Show image if enabled and exists
+            if question.get("image_enabled", True):
+                saved_image = load_scenario_image(question_id)
+                if saved_image:
+                    st.image(saved_image, caption=f"Safety Scenario for Question {i}", use_column_width=True)
+                else:
+                    st.info(f"No scenario image saved for Question {i}. Generate one in the Quiz Configuration tab.")
+            
+            # Show mock answer area
+            st.text_area(f"Your Answer for Question {i}:", 
+                        placeholder="Participants will type their answer here...", 
+                        disabled=True,
+                        key=f"preview_answer_{question_id}")
+            
+            # Show submit button (disabled)
+            st.button(f"Submit Answer", disabled=True, key=f"preview_submit_{question_id}")
+    
+    st.markdown("---")
+    
+    # Show configuration summary
+    st.markdown("### Current Settings")
+    st.metric("Passing Score", f"{config.get('passing_score', 9)}/10")
+    st.info("**Note:** In the actual quiz, participants will receive ONE randomly selected question from the above pool.")
 
 if __name__ == "__main__":
     show()

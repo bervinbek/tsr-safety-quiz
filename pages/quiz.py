@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import time
 import random
 from utils import initialize_data_storage, grade_answer, save_participant_data
 import sys
@@ -128,22 +127,10 @@ def page_quiz_question():
                     st.session_state.current_gen_prompt = question.get("image_prompt")
                 st.rerun()
 
-    # Initialize timer and answer state
-    if 'timer_start' not in st.session_state or st.session_state.get('page_reloaded_for_retake', False):
-        st.session_state.timer_start = time.time()
+    # Initialize answer state
+    if 'answer' not in st.session_state or st.session_state.get('page_reloaded_for_retake', False):
         st.session_state.answer = ""
-        st.session_state.time_up = False
         st.session_state.page_reloaded_for_retake = False
-
-    time_limit = config.get("time_limit", 60)
-    elapsed_time = time.time() - st.session_state.timer_start
-    remaining_time = max(0, time_limit - elapsed_time)
-
-    # Progress bar and countdown text
-    progress = remaining_time / time_limit
-    st.progress(progress)
-    countdown_text = st.empty()
-    countdown_text.markdown(f"**Time Remaining: {int(remaining_time)} seconds**")
 
     # Text area for the answer. Pre-fill with previous answer on retake.
     if 'previous_answer' in st.session_state and not st.session_state.get('answer_displayed', False):
@@ -154,24 +141,11 @@ def page_quiz_question():
     else:
         answer_value = st.session_state.get('user_answer', '')
     
-    answer = st.text_area("Your Answer:", value=answer_value, key="user_answer", disabled=st.session_state.get('time_up', False))
+    answer = st.text_area("Your Answer:", value=answer_value, key="user_answer")
 
-    if st.button("Submit Answer") and not st.session_state.get('time_up', False):
+    if st.button("Submit Answer"):
         st.session_state.answer = st.session_state.user_answer
         st.session_state.page = "grading"
-        st.rerun()
-
-    # Server-side check to lock input when time is up
-    if remaining_time <= 0:
-        st.session_state.time_up = True
-        st.warning("Time is up! Your input has been locked.")
-        # Auto-submit after a short delay
-        time.sleep(1)
-        st.session_state.answer = st.session_state.user_answer
-        st.session_state.page = "grading"
-        st.rerun()
-    else:
-        time.sleep(0.1)
         st.rerun()
 
 def page_completion():
