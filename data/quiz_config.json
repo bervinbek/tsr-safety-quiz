@@ -1,0 +1,8 @@
+{
+  "question_text": "Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on.",
+  "scenario_title": "Safety Scenario Question",
+  "passing_score": 7,
+  "time_limit": 60,
+  "image_enabled": true,
+  "image_prompt": "Photorealistic scene of two NSF soldiers in modern SAF No.4 pixelated camouflage. One soldier is kneeling on a tarmac road, visibly injured, while the other supports/helps him. Distinctive Singapore pixel pattern, field pack with metal frame, black Frontier boots. Background: SAF training area with visible infrastructure during a route march."
+}

@@ -26,33 +26,117 @@ def generate_realistic_fallback():
     Generate a realistic image using free AI services when Gemini is unavailable.
     Always returns a photorealistic image, never an illustration.
     """
+    # Get selected model from session state
+    selected_model = st.session_state.get('selected_image_model', 'Auto (Best)')
+    
+    # Import quiz_config here to avoid circular imports
+    from quiz_config import load_quiz_config
+    
     try:
-        # Use Pollinations AI with highly detailed prompt for realistic output
-        realistic_prompt = """
-        Ultra-realistic photograph, professional DSLR quality, sharp focus, natural lighting:
-        Two Asian male soldiers aged 20, military training accident scene. One soldier sitting on asphalt 
-        road holding injured ankle with pained expression, wearing green camouflage military uniform, 
-        tactical vest, backpack, combat boots. Second soldier standing and bending down to help, 
-        same uniform. Military training ground, tropical trees, concrete buildings background.
-        Harsh sunlight, documentary photography style, high detail, photorealistic, NOT cartoon.
-        """
+        # Load prompt from configuration
+        config = load_quiz_config()
+        base_prompt = config.get("image_prompt", "")
+        
+        # Different prompts for different models
+        if selected_model == "Simplified":
+            # Use a simplified version of the prompt
+            if base_prompt and base_prompt.strip():
+                # Extract key elements from the configured prompt
+                realistic_prompt = "Two soldiers military training one injured helping Singapore modern uniforms"
+            else:
+                realistic_prompt = "Two soldiers military training one injured helping Singapore modern uniforms"
+        else:
+            # Use the full configured prompt or default
+            if base_prompt and base_prompt.strip():
+                realistic_prompt = base_prompt
+            else:
+                # Detailed prompt for better models
+                realistic_prompt = """
+                Photorealistic photo: Two Asian soldiers in modern Singapore military pixelated camouflage uniforms.
+                One soldier sitting on ground holding injured ankle. Second soldier helping.
+                Military training camp, tropical setting, documentary style, realistic lighting.
+                """
         
         encoded_prompt = urllib.parse.quote(realistic_prompt)
         
-        # Use Flux model for best realistic quality
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=800&height=400&model=flux&seed={int(time.time())}&nologo=true"
+        # Determine which models to try based on selection
+        # Note: Pollinations.ai may have limited model support, so we'll use their default with style hints
+        if selected_model == "Flux (Realistic)":
+            # Add style hints for realistic output
+            styled_prompt = f"{realistic_prompt}, ultra realistic, photorealistic, high quality photography"
+            models = [("default", styled_prompt)]
+        elif selected_model == "Turbo (Fast)":
+            # Use simpler prompt for faster generation
+            models = [("default", realistic_prompt)]
+        elif selected_model == "Simplified":
+            # Use very simple prompt
+            simple = "Two soldiers military training one injured helping Singapore modern uniforms"
+            models = [("default", simple)]
+        else:  # Auto (Best)
+            # Try different style variations
+            styled_prompt = f"{realistic_prompt}, ultra realistic, photorealistic, high quality photography"
+            models = [("default", styled_prompt), ("default", realistic_prompt)]
         
-        with st.spinner("Generating realistic fallback image..."):
-            response = requests.get(image_url, timeout=45)
+        for model_name, prompt_to_use in models:
+            try:
+                # Encode the specific prompt for this attempt
+                encoded_prompt_specific = urllib.parse.quote(prompt_to_use)
+                # Pollinations.ai doesn't use model parameter in the same way - remove it
+                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt_specific}?width=800&height=400&seed={int(time.time())}"
+                
+                # No nested spinner - just make the request
+                response = requests.get(image_url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
+                    
+                if response.status_code == 200:
+                    # Verify we got an image
+                    content_type = response.headers.get('content-type', '')
+                    if 'image' in content_type:
+                        img = Image.open(BytesIO(response.content))
+                        # Show which model/style was selected
+                        attribution = f"AI Generated ({selected_model})"
+                        img_with_text = add_model_attribution(img, attribution)
+                        return img_with_text
+                    else:
+                        # Don't show warning for each attempt in Auto mode
+                        if selected_model != "Auto (Best)":
+                            st.warning(f"Received non-image response")
+                        continue
+                else:
+                    # Don't show warning for each attempt in Auto mode
+                    if selected_model != "Auto (Best)":
+                        st.warning(f"Generation returned status {response.status_code}")
+                    continue
+                        
+            except requests.exceptions.Timeout:
+                # Only show timeout warning if not in Auto mode
+                if selected_model != "Auto (Best)":
+                    st.warning(f"Request timeout - please try again")
+                continue
+            except Exception as e:
+                # Only show error if not in Auto mode
+                if selected_model != "Auto (Best)":
+                    st.warning(f"Generation error: {str(e)[:100]}")
+                continue
+        
+        # Last resort - use a very simple prompt
+        simple_prompt = "Two soldiers military training one injured helping Singapore"
+        encoded_simple = urllib.parse.quote(simple_prompt)
+        simple_url = f"https://image.pollinations.ai/prompt/{encoded_simple}?width=800&height=400&seed={int(time.time())}"
+        
+        try:
+            response = requests.get(simple_url, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
             if response.status_code == 200:
                 img = Image.open(BytesIO(response.content))
                 img_with_text = add_model_attribution(img, "AI Generated (Fallback)")
                 return img_with_text
+        except:
+            pass
+            
     except Exception as e:
-        st.error(f"Failed to generate realistic image: {e}")
+        st.error(f"Image generation failed: {str(e)}")
     
-    # If absolutely everything fails, return None rather than illustration
-    st.error("Unable to generate image. Please check your internet connection.")
+    # Return None if all attempts fail
+    st.error("Could not generate image after multiple attempts. Please try again.")
     return None
 
 def create_scenario_illustration():
@@ -174,98 +258,88 @@ def add_model_attribution(img, model_name):
 
 def generate_safety_scenario_image():
     """
-    Generate image using Google Gemini 2.0 Flash Image Preview.
-    Uses the new native image generation capabilities.
+    Generate image based on selected model.
     """
     
-    # Enhanced prompt for photorealistic output with Gemini
-    image_prompt = """
-    Generate a highly realistic, photographic quality image. Style: Professional military documentary photography, 
-    Canon 5D Mark IV, 85mm lens, natural lighting, high detail, sharp focus.
+    # Get selected model
+    selected_model = st.session_state.get('selected_image_model', 'Auto (Best)')
     
-    Subject: Two Asian male soldiers (age 19-21) in Singapore Armed Forces uniforms during training exercise.
+    # Import quiz_config here to avoid circular imports
+    from quiz_config import load_quiz_config
     
-    Details:
-    - Uniforms: Authentic SAF pixelated digital camouflage pattern (green/brown/black), tactical vests, 
-      field backpacks, military caps, black combat boots
-    - Action: One soldier sitting on ground holding injured ankle with pained expression, second soldier 
-      standing and bending down to help
-    - Environment: Military training ground, asphalt road, tropical trees, military buildings in background
-    - Lighting: Bright daylight, harsh sun creating realistic shadows
-    - Quality: Photorealistic, high resolution, documentary style, not illustrated or cartoon
+    # Load prompt from configuration, with detailed fallback
+    config = load_quiz_config()
+    image_prompt = config.get("image_prompt", "")
     
-    Emphasis on realism: Make this look like an actual photograph taken during military training, 
-    with authentic details, natural poses, realistic lighting and shadows.
-    """
+    # If no prompt is configured or it's empty, use the detailed default
+    if not image_prompt or image_prompt.strip() == "":
+        image_prompt = """
+        Generate a highly realistic, photographic quality image. Style: Professional military documentary photography, 
+        Canon 5D Mark IV, 85mm lens, natural lighting, high detail, sharp focus.
+        
+        Subject: Two young Asian Singaporean male soldiers (NSF, age 19-21) in MODERN Singapore Armed Forces uniforms during route march training.
+        
+        MODERN SAF UNIFORM DETAILS (Current 2024 standard issue):
+        - Modern SAF No.4 digital pixelated camouflage uniform (distinctive green/brown/black pixel pattern)
+        - Current SAF Load Bearing Vest (LBV) with MOLLE webbing system
+        - Latest model SAF field pack with frame
+        - SAF jockey cap with metal Singapore Armed Forces crest badge
+        - Black Frontier combat boots (current SAF standard issue)
+        - Green SAF admin T-shirt visible at collar
+        - Name tag and rank insignia on uniform
+        
+        Action: Route march injury scenario - one NSF soldier sitting on tarmac road holding injured right ankle 
+        with grimacing expression but determined look, second NSF soldier standing beside him bending down 
+        to help, showing buddy care system.
+        
+        Environment: Modern Singapore military training camp (Tekong/Gedong style), SAF buildings with 
+        distinctive green metal roofs, covered walkways, tropical trees, hot sunny day with harsh shadows.
+        
+        Quality: Photorealistic, high resolution, military documentary style, authentic modern SAF context.
+        Must look like actual SAF training photograph from 2024, NOT generic military or outdated uniforms.
+        """
     
-    try:
-        # Get Google API key
-        google_api_key = None
+    # Handle Gemini Enhanced option
+    if selected_model == "Gemini Enhanced":
         try:
             google_api_key = st.secrets.get("GOOGLE_API_KEY", "")
-            if not google_api_key or google_api_key == "":
-                st.error("Google API Key is required. Please add GOOGLE_API_KEY to .streamlit/secrets.toml")
-                # Use a high-quality realistic fallback image service
-                return generate_realistic_fallback()
+            if google_api_key and google_api_key != "":
+                # Use Gemini to enhance the prompt
+                if genai:
+                    try:
+                        if not NEW_GENAI:
+                            # Use old library
+                            import google.generativeai as old_genai
+                            old_genai.configure(api_key=google_api_key)
+                            model = old_genai.GenerativeModel('gemini-pro')
+                            
+                            enhancement_prompt = f"""
+                            Enhance this prompt for maximum photorealism in AI image generation:
+                            {image_prompt}
+                            
+                            Add specific details about lighting, textures, camera settings.
+                            Output only the enhanced prompt (150 words max).
+                            """
+                            
+                            response = model.generate_content(enhancement_prompt)
+                            enhanced_prompt = response.text.strip()[:500]
+                            
+                            # Generate with enhanced prompt
+                            encoded = urllib.parse.quote(enhanced_prompt)
+                            # Don't specify model parameter - use Pollinations default
+                            url = f"https://image.pollinations.ai/prompt/{encoded}?width=800&height=400&seed={int(time.time())}"
+                            
+                            resp = requests.get(url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
+                            if resp.status_code == 200:
+                                img = Image.open(BytesIO(resp.content))
+                                return add_model_attribution(img, "Gemini Enhanced")
+                    except Exception as e:
+                        st.warning(f"Gemini enhancement failed: {e}. Using standard generation.")
         except:
-            st.error("Google API Key not found. Please add GOOGLE_API_KEY to .streamlit/secrets.toml")
-            return generate_realistic_fallback()
-        
-        if not genai:
-            st.error("Google GenAI library not installed. Run: pip install google-genai")
-            return generate_realistic_fallback()
-            
-        with st.spinner("Generating SAF scenario image with Gemini 2.0 Flash Image..."):
-            try:
-                if NEW_GENAI:
-                    # Use the new google-genai library with image generation
-                    client = genai.Client(api_key=google_api_key)
-                    
-                    # Add system instruction for photorealistic output
-                    system_instruction = """You are a photorealistic image generator. 
-                    Generate only highly realistic, photograph-quality images that look like actual photos.
-                    Avoid any cartoon, illustration, or artistic styles. Focus on documentary realism."""
-                    
-                    # Generate image using Gemini 2.0 Flash Image Preview with enhanced prompt
-                    full_prompt = f"{system_instruction}\n\n{image_prompt}"
-                    
-                    response = client.models.generate_content(
-                        model="gemini-2.0-flash-image-preview",
-                        contents=[full_prompt]
-                    )
-                    
-                    # Extract the generated image from response
-                    for part in response.candidates[0].content.parts:
-                        if part.inline_data is not None:
-                            # Image data is in the inline_data
-                            img = Image.open(BytesIO(part.inline_data.data))
-                            # Resize if needed
-                            if img.size != (800, 400):
-                                img = img.resize((800, 400), Image.Resampling.LANCZOS)
-                            # Add attribution
-                            img_with_text = add_model_attribution(img, "Gemini 2.0 Flash Image")
-                            return img_with_text
-                        elif part.text is not None:
-                            # Sometimes the model returns text explaining the image
-                            st.info(f"Gemini response: {part.text[:200]}")
-                    
-                    # If no image was generated, try alternative approach
-                    st.warning("Gemini didn't generate an image directly. Using enhanced prompt approach.")
-                    
-                # Fallback if new API doesn't work
-                st.warning("Gemini 2.0 Flash Image Preview not available. Using realistic fallback.")
-                return generate_realistic_fallback()
-                    
-            except Exception as e:
-                st.error(f"Gemini generation error: {e}")
-                # Use realistic fallback if Gemini fails
-                return generate_realistic_fallback()
-            
-    except Exception as e:
-        # If Gemini API key issues or other errors
-        print(f"Image generation error: {e}")
-        st.error(f"Gemini 2.0 Flash Image generation failed. Using realistic fallback.")
-        return generate_realistic_fallback()
+            pass
+    
+    # For all other options, use the standard fallback
+    return generate_realistic_fallback()
 
 def get_cached_scenario_image():
     """

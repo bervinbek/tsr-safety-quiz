@@ -6,6 +6,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from image_generator import get_cached_scenario_image
+from quiz_config import load_quiz_config, load_scenario_image
 
 def page_participant_details():
     """Page 1: Collects participant details."""
@@ -36,12 +37,15 @@ def page_participant_details():
 
 def page_quiz_question():
     """Page 2: Displays the safety scenario question and timer."""
-    st.header("Safety Scenario Question")
+    # Load quiz configuration
+    config = load_quiz_config()
+    st.header(config.get("scenario_title", "Safety Scenario Question"))
 
     # If there's retake feedback, show the feedback screen first.
     if 'retake_feedback' in st.session_state:
         feedback = st.session_state.retake_feedback
-        st.warning(f"Your score was {feedback['Score']}/10. You need a score of 9 or higher to pass.")
+        passing_score = config.get("passing_score", 9)
+        st.warning(f"Your score was {feedback['Score']}/10. You need a score of {passing_score} or higher to pass.")
         st.subheader("Feedback on your previous answer:")
         st.markdown(f"**Strength:** {feedback['Strength']}")
         st.markdown(f"**Weakness:** {feedback['Weakness']}")
@@ -58,19 +62,50 @@ def page_quiz_question():
             st.rerun()
         return # Stop further rendering until user clicks retry
 
-    st.write("Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on.")
+    st.write(config.get("question_text", "Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on."))
     
-    # Display scenario image
-    col1, col2 = st.columns([4, 1])
+    # Display scenario image with model selection
+    col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
-        scenario_image = get_cached_scenario_image()
-        if scenario_image:
-            st.image(scenario_image, caption="Safety Scenario: Combat buddy injured during route march", use_column_width=True)
+        # Check if image display is enabled in config
+        if config.get("image_enabled", True):
+            # First try to load saved image from admin
+            saved_image = load_scenario_image()
+            if saved_image:
+                st.image(saved_image, caption="Safety Scenario: Combat buddy injured during route march", use_column_width=True)
+            else:
+                # Generate new image if no saved image exists
+                scenario_image = get_cached_scenario_image()
+                if scenario_image:
+                    st.image(scenario_image, caption="Safety Scenario: Combat buddy injured during route march", use_column_width=True)
     with col2:
-        if st.button("🔄", help="Regenerate image"):
-            if 'scenario_image' in st.session_state:
-                del st.session_state['scenario_image']
-            st.rerun()
+        # Only show model selection if no saved image or if image generation is needed
+        if config.get("image_enabled", True) and not load_scenario_image():
+            # Model selection dropdown
+            model_options = ["Auto (Best)", "Flux (Realistic)", "Turbo (Fast)", "Simplified"]
+            
+            # Add Gemini option if API key is configured
+            try:
+                if st.secrets.get("GOOGLE_API_KEY", "") != "":
+                    model_options.insert(1, "Gemini Enhanced")
+            except:
+                pass
+                
+            selected_model = st.selectbox(
+                "Model:",
+                model_options,
+                key="image_model",
+                help="Select AI model for image generation"
+            )
+            # Store selected model in session state
+            st.session_state.selected_image_model = selected_model
+    with col3:
+        # Only show regenerate if no saved image
+        if config.get("image_enabled", True) and not load_scenario_image():
+            if st.button("🔄 Regenerate", help="Generate new image with selected model"):
+                if 'scenario_image' in st.session_state:
+                    del st.session_state['scenario_image']
+                st.rerun()
 
     # Initialize timer and answer state
     if 'timer_start' not in st.session_state or st.session_state.get('page_reloaded_for_retake', False):
@@ -79,7 +114,7 @@ def page_quiz_question():
         st.session_state.time_up = False
         st.session_state.page_reloaded_for_retake = False
 
-    time_limit = 60
+    time_limit = config.get("time_limit", 60)
     elapsed_time = time.time() - st.session_state.timer_start
     remaining_time = max(0, time_limit - elapsed_time)
 
@@ -162,8 +197,10 @@ def main():
             grading_results = grade_answer(st.session_state.answer)
             st.session_state.grading_results = grading_results
             
+            # Load passing score from config
+            passing_score = load_quiz_config().get("passing_score", 9)
             # Check if score is sufficient
-            if grading_results["Score"] >= 9:
+            if grading_results["Score"] >= passing_score:
                 # Combine all data and save
                 full_data = {
                     **st.session_state.participant_details,
