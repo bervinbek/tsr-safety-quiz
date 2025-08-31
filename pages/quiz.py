@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import time
 from utils import initialize_data_storage, grade_answer, save_participant_data
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from image_generator import get_cached_scenario_image
 
 def page_participant_details():
     """Page 1: Collects participant details."""
@@ -47,10 +51,26 @@ def page_quiz_question():
         if st.button("Retry Quiz"):
             del st.session_state['retake_feedback']
             st.session_state.page_reloaded_for_retake = True
+            st.session_state.answer_displayed = False  # Reset the display flag for retry
+            # Clear cached image to regenerate with improved prompt
+            if 'scenario_image' in st.session_state:
+                del st.session_state['scenario_image']
             st.rerun()
         return # Stop further rendering until user clicks retry
 
     st.write("Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on.")
+    
+    # Display scenario image
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        scenario_image = get_cached_scenario_image()
+        if scenario_image:
+            st.image(scenario_image, caption="Safety Scenario: Combat buddy injured during route march", use_column_width=True)
+    with col2:
+        if st.button("🔄", help="Regenerate image"):
+            if 'scenario_image' in st.session_state:
+                del st.session_state['scenario_image']
+            st.rerun()
 
     # Initialize timer and answer state
     if 'timer_start' not in st.session_state or st.session_state.get('page_reloaded_for_retake', False):
@@ -70,11 +90,13 @@ def page_quiz_question():
     countdown_text.markdown(f"**Time Remaining: {int(remaining_time)} seconds**")
 
     # Text area for the answer. Pre-fill with previous answer on retake.
-    if 'previous_answer' in st.session_state:
+    if 'previous_answer' in st.session_state and not st.session_state.get('answer_displayed', False):
         answer_value = st.session_state.previous_answer
-        del st.session_state['previous_answer'] # Clear it after using it once
-    else:
+        st.session_state.answer_displayed = True  # Mark that we've displayed it
+    elif 'previous_answer' not in st.session_state:
         answer_value = ""
+    else:
+        answer_value = st.session_state.get('user_answer', '')
     
     answer = st.text_area("Your Answer:", value=answer_value, key="user_answer", disabled=st.session_state.get('time_up', False))
 

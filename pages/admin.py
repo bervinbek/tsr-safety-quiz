@@ -51,19 +51,76 @@ def show():
 
         st.markdown("---")
         st.subheader("Raw Participant Data")
-        st.dataframe(df)
-
-        # Export to Excel
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Participants')
         
-        st.download_button(
-            label="Download Data as .xlsx",
-            data=output.getvalue(),
-            file_name="participants.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        # Add action column for delete buttons
+        if not df.empty:
+            df_display = df.copy()
+            df_display.insert(0, "Action", "")
+            
+            # Display each row with a delete button
+            for idx in df.index:
+                col1, col2 = st.columns([0.1, 0.9])
+                
+                with col1:
+                    if st.button("🗑️", key=f"del_{idx}", help=f"Delete {df.loc[idx, 'Rank Name']}'s record"):
+                        # Delete the row
+                        df_updated = df.drop(idx).reset_index(drop=True)
+                        df_updated.to_csv(CSV_PATH, index=False)
+                        st.success(f"Deleted record for {df.loc[idx, 'Rank Name']}")
+                        st.rerun()
+                
+                with col2:
+                    # Display row data in a compact format
+                    row_text = f"**{df.loc[idx, 'Rank Name']}** | {df.loc[idx, 'UNIT']} - {df.loc[idx, 'COY']} - Platoon {df.loc[idx, 'PLATOON']} | Score: {df.loc[idx, 'Score']}/10 | {df.loc[idx, 'Timestamp']}"
+                    st.write(row_text)
+            
+            st.markdown("---")
+            
+            # Also show full dataframe for reference
+            with st.expander("View Full Data Table"):
+                st.dataframe(df)
+        else:
+            st.info("No participant data available.")
+
+        # Export to Excel - Fixed xlsxwriter bug
+        output = BytesIO()
+        excel_created = False
+        
+        # Try xlsxwriter first
+        try:
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Participants')
+            output.seek(0)  # Reset buffer position to beginning
+            excel_created = True
+        except ImportError:
+            # Try openpyxl as fallback
+            try:
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Participants')
+                output.seek(0)  # Reset buffer position to beginning
+                excel_created = True
+            except Exception as e:
+                st.error(f"Error creating Excel file: {e}")
+        except Exception as e:
+            st.error(f"Error creating Excel file: {e}")
+        
+        if excel_created:
+            st.download_button(
+                label="Download Data as .xlsx",
+                data=output.getvalue(),
+                file_name="participants.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            # Fallback to CSV if Excel export fails
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="Download Data as .csv (Excel export failed)",
+                data=csv,
+                file_name="participants.csv",
+                mime="text/csv"
+            )
 
         # Assign Monthly Quiz
         if st.button("Assign Monthly"):
