@@ -33,9 +33,13 @@ def generate_realistic_fallback():
     from quiz_config import load_quiz_config
     
     try:
-        # Load prompt from configuration
-        config = load_quiz_config()
-        base_prompt = config.get("image_prompt", "")
+        # Check if there's a specific prompt in session state (for multi-question support)
+        if 'current_gen_prompt' in st.session_state:
+            base_prompt = st.session_state.get('current_gen_prompt', "")
+        else:
+            # Load prompt from configuration
+            config = load_quiz_config()
+            base_prompt = config.get("image_prompt", "")
         
         # Different prompts for different models
         if selected_model == "Simplified":
@@ -95,6 +99,9 @@ def generate_realistic_fallback():
                         # Show which model/style was selected
                         attribution = f"AI Generated ({selected_model})"
                         img_with_text = add_model_attribution(img, attribution)
+                        # Clean up the prompt from session state after successful generation
+                        if 'current_gen_prompt' in st.session_state:
+                            del st.session_state.current_gen_prompt
                         return img_with_text
                     else:
                         # Don't show warning for each attempt in Auto mode
@@ -128,12 +135,19 @@ def generate_realistic_fallback():
             if response.status_code == 200:
                 img = Image.open(BytesIO(response.content))
                 img_with_text = add_model_attribution(img, "AI Generated (Fallback)")
+                # Clean up the prompt from session state after successful generation
+                if 'current_gen_prompt' in st.session_state:
+                    del st.session_state.current_gen_prompt
                 return img_with_text
         except:
             pass
             
     except Exception as e:
         st.error(f"Image generation failed: {str(e)}")
+    
+    # Clean up the prompt from session state if generation failed
+    if 'current_gen_prompt' in st.session_state:
+        del st.session_state.current_gen_prompt
     
     # Return None if all attempts fail
     st.error("Could not generate image after multiple attempts. Please try again.")
@@ -267,9 +281,18 @@ def generate_safety_scenario_image():
     # Import quiz_config here to avoid circular imports
     from quiz_config import load_quiz_config
     
-    # Load prompt from configuration, with detailed fallback
-    config = load_quiz_config()
-    image_prompt = config.get("image_prompt", "")
+    # Check if there's a specific prompt in session state (for multi-question support)
+    if 'current_gen_prompt' in st.session_state:
+        image_prompt = st.session_state.current_gen_prompt
+        # Don't delete here - let generate_realistic_fallback handle it
+    else:
+        # Load prompt from configuration, with detailed fallback
+        config = load_quiz_config()
+        # For backward compatibility, check if using old format
+        if "questions" in config and len(config["questions"]) > 0:
+            image_prompt = config["questions"][0].get("image_prompt", "")
+        else:
+            image_prompt = config.get("image_prompt", "")
     
     # If no prompt is configured or it's empty, use the detailed default
     if not image_prompt or image_prompt.strip() == "":
@@ -332,6 +355,9 @@ def generate_safety_scenario_image():
                             resp = requests.get(url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
                             if resp.status_code == 200:
                                 img = Image.open(BytesIO(resp.content))
+                                # Clean up the prompt from session state after successful generation
+                                if 'current_gen_prompt' in st.session_state:
+                                    del st.session_state.current_gen_prompt
                                 return add_model_attribution(img, "Gemini Enhanced")
                     except Exception as e:
                         st.warning(f"Gemini enhancement failed: {e}. Using standard generation.")

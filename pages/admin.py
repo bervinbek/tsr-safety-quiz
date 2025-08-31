@@ -7,7 +7,9 @@ from utils import send_telegram_message, CSV_PATH
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quiz_config import load_quiz_config, save_quiz_config, save_scenario_image, load_scenario_image, delete_scenario_image
+from quiz_config import (load_quiz_config, save_quiz_config, save_scenario_image, 
+                         load_scenario_image, delete_scenario_image, get_all_questions,
+                         add_question, update_question, delete_question, get_question_by_id)
 from image_generator import generate_safety_scenario_image
 
 def show():
@@ -161,102 +163,154 @@ def show_quiz_configuration():
     
     # Load current configuration
     config = load_quiz_config()
+    questions = get_all_questions()
+    
+    # Global settings
+    with st.expander("⚙️ Global Settings", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            passing_score = st.number_input(
+                "Passing Score (out of 10):",
+                min_value=1,
+                max_value=10,
+                value=config.get("passing_score", 9),
+                help="Minimum score required to pass"
+            )
+        with col2:
+            time_limit = st.number_input(
+                "Time Limit per Question (seconds):",
+                min_value=30,
+                max_value=300,
+                value=config.get("time_limit", 60),
+                step=10,
+                help="Time allowed to answer each question"
+            )
+        
+        if st.button("💾 Save Global Settings", type="primary"):
+            config["passing_score"] = passing_score
+            config["time_limit"] = time_limit
+            if save_quiz_config(config):
+                st.success("✅ Global settings saved!")
+    
+    # Question management
+    st.markdown("### Questions")
+    
+    # Add new question button
+    if st.button("➕ Add New Question", type="secondary"):
+        new_question = {
+            "scenario_title": "New Safety Scenario",
+            "question_text": "Enter your question here...",
+            "image_enabled": True,
+            "image_prompt": ""
+        }
+        success, new_id = add_question(new_question)
+        if success:
+            st.success(f"✅ New question added with ID: {new_id}")
+            st.rerun()
+    
+    # Create tabs for each question
+    if questions:
+        tab_labels = [f"Question {i+1}" for i in range(len(questions))]
+        tabs = st.tabs(tab_labels)
+        
+        for i, (tab, question) in enumerate(zip(tabs, questions)):
+            with tab:
+                show_question_editor(question, i+1)
+
+def show_question_editor(question, question_num):
+    """Show the editor for a single question."""
+    question_id = question.get("id", "")
     
     # Container for the form and auto-generate button
     form_container = st.container()
     
     with form_container:
-        # Create form for editing
-        with st.form("quiz_config_form"):
-            st.markdown("### Question Settings")
+        # Create form for editing with unique key per question
+        with st.form(f"question_form_{question_id}"):
+            st.markdown(f"### Question {question_num} Settings")
             
             # Edit scenario title
             scenario_title = st.text_input(
                 "Scenario Title:",
-                value=config.get("scenario_title", "Safety Scenario Question"),
+                value=question.get("scenario_title", "Safety Scenario Question"),
                 help="Title shown above the question"
             )
             
             # Edit question text
             question_text = st.text_area(
                 "Question Text:",
-                value=config.get("question_text", ""),
+                value=question.get("question_text", ""),
                 height=100,
                 help="The main question that participants will answer"
             )
             
-            # Edit scoring and timing
-            col1, col2 = st.columns(2)
-            with col1:
-                passing_score = st.number_input(
-                "Passing Score (out of 10):",
-                min_value=1,
-                max_value=10,
-                value=config.get("passing_score", 9),
-                help="Minimum score required to pass"
-                )
-            
-            with col2:
-                time_limit = st.number_input(
-                "Time Limit (seconds):",
-                min_value=30,
-                max_value=300,
-                value=config.get("time_limit", 60),
-                step=10,
-                help="Time allowed to answer the question"
-                )
             
             # Image settings
             image_enabled = st.checkbox(
-            "Enable Scenario Image",
-            value=config.get("image_enabled", True),
-            help="Show an AI-generated image with the question"
+                "Enable Scenario Image",
+                value=question.get("image_enabled", True),
+                help="Show an AI-generated image with the question"
             )
             
             # Image generation prompt
             st.markdown("### Image Generation Prompt")
             
-            # Check if we should use auto-generated prompt
-            if 'auto_generated_prompt' in st.session_state:
-                prompt_value = st.session_state.auto_generated_prompt
-                del st.session_state.auto_generated_prompt
+            # Check if we should use auto-generated prompt for this question
+            session_key = f'auto_generated_prompt_{question_id}'
+            if session_key in st.session_state:
+                prompt_value = st.session_state[session_key]
+                del st.session_state[session_key]
             else:
-                prompt_value = config.get("image_prompt", "")
+                prompt_value = question.get("image_prompt", "")
             
             image_prompt = st.text_area(
-            "AI Image Prompt:",
-            value=prompt_value,
-            height=100,
-            help="Concise description for image generation. Use the 'Auto-Generate Prompt' button above to create from question.",
-            key="image_prompt_field"
+                "AI Image Prompt:",
+                value=prompt_value,
+                height=100,
+                help="Concise description for image generation. Use the 'Auto-Generate Prompt' button below to create from question.",
+                key=f"image_prompt_field_{question_id}"
             )
             
-            # Save button
-            submitted = st.form_submit_button("💾 Save Configuration", type="primary")
+            # Save and Delete buttons
+            col1, col2, col3 = st.columns([1, 1, 2])
+            with col1:
+                submitted = st.form_submit_button("💾 Save Question", type="primary")
+            with col2:
+                # Only show delete if not the only question
+                questions = get_all_questions()
+                if len(questions) > 1:
+                    delete_clicked = st.form_submit_button("🗑️ Delete Question", type="secondary")
+                else:
+                    delete_clicked = False
             
             if submitted:
-                # Update configuration
-                new_config = {
-                    "question_text": question_text,
+                # Update question
+                updated_question = {
                     "scenario_title": scenario_title,
-                    "passing_score": passing_score,
-                    "time_limit": time_limit,
+                    "question_text": question_text,
                     "image_enabled": image_enabled,
                     "image_prompt": image_prompt
                 }
                 
-                if save_quiz_config(new_config):
-                    st.success("✅ Configuration saved successfully!")
+                if update_question(question_id, updated_question):
+                    st.success("✅ Question saved successfully!")
                     st.balloons()
                 else:
-                    st.error("Failed to save configuration")
+                    st.error("Failed to save question")
+            
+            if delete_clicked:
+                if delete_question(question_id):
+                    st.success("✅ Question deleted!")
+                    st.rerun()
+                else:
+                    st.error("Cannot delete the only question")
     
     # Auto-generate prompt button (outside form, but positioned nicely)
     with form_container:
         # Position button to appear near the form
         st.write("")  # Add spacing
-        if st.button("🤖 Auto-Generate Image Prompt", type="secondary", help="Generate prompt from question text"):
-            question_text = config.get("question_text", "")
+        if st.button(f"🤖 Auto-Generate Image Prompt", type="secondary", 
+                    help="Generate prompt from question text", key=f"auto_gen_{question_id}"):
             if question_text:
                 # Parse the question for key scenario
                 scenario = ""
@@ -286,26 +340,27 @@ def show_quiz_configuration():
                 generated_prompt = f"Photorealistic scene of two NSF soldiers in modern SAF No.4 pixelated camouflage. {scenario}. Distinctive Singapore pixel pattern, field pack with metal frame, black Frontier boots. Background: {environment}."
                 
                 # Store in session state to update the field on rerun
-                st.session_state.auto_generated_prompt = generated_prompt
+                st.session_state[f'auto_generated_prompt_{question_id}'] = generated_prompt
                 st.success("✅ Prompt generated and inserted into the form!")
                 st.rerun()
             else:
-                st.warning("Please save a question text first, then click this button.")
+                st.warning("Please enter a question text first.")
     
     # Image generation section
     st.markdown("### Scenario Image")
     
-    # Show current image if exists
-    current_image = load_scenario_image()
+    # Show current image if exists for this question
+    current_image = load_scenario_image(question_id)
     if current_image:
-        st.image(current_image, caption="Current Scenario Image", use_column_width=True)
+        st.image(current_image, caption=f"Current Scenario Image for Question {question_num}", use_column_width=True)
     else:
-        st.info("No scenario image saved. Generate one below.")
+        st.info("No scenario image saved for this question. Generate one below.")
     
     # Show current prompt being used
     with st.expander("📝 Current Image Generation Prompt", expanded=False):
-        current_prompt = config.get("image_prompt", "No prompt configured")
-        st.text_area("Prompt that will be used:", value=current_prompt, height=100, disabled=True)
+        current_prompt = question.get("image_prompt", "No prompt configured")
+        st.text_area("Prompt that will be used:", value=current_prompt, height=100, disabled=True, 
+                    key=f"show_prompt_{question_id}")
         st.info("💡 Edit the prompt in the form above and save to update it.")
     
     # Image generation controls
@@ -323,18 +378,24 @@ def show_quiz_configuration():
         selected_model = st.selectbox(
             "Image Generation Model:",
             model_options,
-            key="admin_image_model",
+            key=f"admin_image_model_{question_id}",
             help="Select AI model for image generation"
         )
     
     with col2:
-        if st.button("🎨 Generate New Image", type="secondary"):
+        if st.button("🎨 Generate New Image", type="secondary", key=f"gen_img_{question_id}"):
             st.session_state.selected_image_model = selected_model
             with st.spinner(f"Generating image with {selected_model}..."):
                 try:
+                    # Load the question's prompt for generation
+                    updated_q = get_question_by_id(question_id)
+                    if updated_q and updated_q.get("image_prompt"):
+                        # Temporarily set the prompt in session for the generator
+                        st.session_state.current_gen_prompt = updated_q.get("image_prompt")
+                    
                     new_image = generate_safety_scenario_image()
                     if new_image:
-                        st.session_state.preview_image = new_image
+                        st.session_state[f'preview_image_{question_id}'] = new_image
                         st.success("Image generated! Preview below.")
                         st.rerun()
                     else:
@@ -343,27 +404,28 @@ def show_quiz_configuration():
                     st.error(f"Error generating image: {str(e)[:200]}")
     
     with col3:
-        if current_image and st.button("🗑️ Delete Current", type="secondary"):
-            if delete_scenario_image():
+        if current_image and st.button("🗑️ Delete Current", type="secondary", key=f"del_img_{question_id}"):
+            if delete_scenario_image(question_id):
                 st.success("Image deleted")
                 st.rerun()
     
-    # Show preview if generated
-    if 'preview_image' in st.session_state:
+    # Show preview if generated for this question
+    preview_key = f'preview_image_{question_id}'
+    if preview_key in st.session_state:
         st.markdown("#### Preview Generated Image")
-        st.image(st.session_state.preview_image, caption="Preview - Not Saved Yet", use_column_width=True)
+        st.image(st.session_state[preview_key], caption="Preview - Not Saved Yet", use_column_width=True)
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("✅ Save This Image", type="primary"):
-                if save_scenario_image(st.session_state.preview_image):
+            if st.button("✅ Save This Image", type="primary", key=f"save_img_{question_id}"):
+                if save_scenario_image(st.session_state[preview_key], question_id):
                     st.success("Image saved successfully!")
-                    del st.session_state.preview_image
+                    del st.session_state[preview_key]
                     st.rerun()
         
         with col2:
-            if st.button("❌ Discard"):
-                del st.session_state.preview_image
+            if st.button("❌ Discard", key=f"discard_img_{question_id}"):
+                del st.session_state[preview_key]
                 st.rerun()
 
 def preview_quiz():

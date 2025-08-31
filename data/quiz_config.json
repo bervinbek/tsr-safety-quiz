@@ -1,8 +1,21 @@
 {
-  "question_text": "Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on.",
-  "scenario_title": "Safety Scenario Question",
   "passing_score": 7,
   "time_limit": 60,
-  "image_enabled": true,
-  "image_prompt": "Photorealistic scene of two NSF soldiers in modern SAF No.4 pixelated camouflage. One soldier is kneeling on a tarmac road, visibly injured, while the other supports/helps him. Distinctive Singapore pixel pattern, field pack with metal frame, black Frontier boots. Background: SAF training area with visible infrastructure during a route march."
+  "questions": [
+    {
+      "id": "q1",
+      "scenario_title": "Safety Scenario Question",
+      "question_text": "Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on.",
+      "image_enabled": true,
+      "image_prompt": "Photorealistic scene of two NSF soldiers in modern SAF No.4 pixelated camouflage. One soldier is kneeling on a tarmac road, visibly injured, while the other supports/helps him. Distinctive Singapore pixel pattern, field pack with metal frame, black Frontier boots. Background: SAF training area with visible infrastructure during a route march.",
+      "image_file": "q1_image.png"
+    },
+    {
+      "scenario_title": "Vehicle Accident",
+      "question_text": "An armored vehicle overturns during movement. As crew or nearby soldier, what immediate actions ensure self-safety, aid the injured, and prevent further accidents?",
+      "image_enabled": true,
+      "image_prompt": "Photorealistic scene of an overturned SAF armoured vehicle on a training road. Modern SAF No.4 pixelated camouflage soldiers present. One soldier checks surroundings for safety, another assists an injured crew member on the ground. Environment shows SAF training area infrastructure, tarmac road, route march context.",
+      "id": "q2"
+    }
+  ]
 }

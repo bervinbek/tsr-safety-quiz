@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 import time
+import random
 from utils import initialize_data_storage, grade_answer, save_participant_data
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from image_generator import get_cached_scenario_image
-from quiz_config import load_quiz_config, load_scenario_image
+from quiz_config import load_quiz_config, load_scenario_image, get_all_questions
 
 def page_participant_details():
     """Page 1: Collects participant details."""
@@ -39,7 +40,21 @@ def page_quiz_question():
     """Page 2: Displays the safety scenario question and timer."""
     # Load quiz configuration
     config = load_quiz_config()
-    st.header(config.get("scenario_title", "Safety Scenario Question"))
+    
+    # Get all questions and select one
+    questions = get_all_questions()
+    if not questions:
+        st.error("No questions configured. Please contact the administrator.")
+        return
+    
+    # Select a random question if not already selected for this session
+    if 'selected_question' not in st.session_state:
+        st.session_state.selected_question = random.choice(questions)
+    
+    question = st.session_state.selected_question
+    question_id = question.get("id", "q1")
+    
+    st.header(question.get("scenario_title", "Safety Scenario Question"))
 
     # If there's retake feedback, show the feedback screen first.
     if 'retake_feedback' in st.session_state:
@@ -62,25 +77,28 @@ def page_quiz_question():
             st.rerun()
         return # Stop further rendering until user clicks retry
 
-    st.write(config.get("question_text", "Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on."))
+    st.write(question.get("question_text", "Describe the actions when your buddy trips and fall during a march and has difficulty walking but insists to carry on."))
     
     # Display scenario image with model selection
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
-        # Check if image display is enabled in config
-        if config.get("image_enabled", True):
-            # First try to load saved image from admin
-            saved_image = load_scenario_image()
+        # Check if image display is enabled for this question
+        if question.get("image_enabled", True):
+            # First try to load saved image from admin for this question
+            saved_image = load_scenario_image(question_id)
             if saved_image:
-                st.image(saved_image, caption="Safety Scenario: Combat buddy injured during route march", use_column_width=True)
+                st.image(saved_image, caption=question.get("scenario_title", "Safety Scenario"), use_column_width=True)
             else:
                 # Generate new image if no saved image exists
+                # Set the question's prompt for generation
+                if question.get("image_prompt"):
+                    st.session_state.current_gen_prompt = question.get("image_prompt")
                 scenario_image = get_cached_scenario_image()
                 if scenario_image:
-                    st.image(scenario_image, caption="Safety Scenario: Combat buddy injured during route march", use_column_width=True)
+                    st.image(scenario_image, caption=question.get("scenario_title", "Safety Scenario"), use_column_width=True)
     with col2:
         # Only show model selection if no saved image or if image generation is needed
-        if config.get("image_enabled", True) and not load_scenario_image():
+        if question.get("image_enabled", True) and not load_scenario_image(question_id):
             # Model selection dropdown
             model_options = ["Auto (Best)", "Flux (Realistic)", "Turbo (Fast)", "Simplified"]
             
@@ -101,10 +119,13 @@ def page_quiz_question():
             st.session_state.selected_image_model = selected_model
     with col3:
         # Only show regenerate if no saved image
-        if config.get("image_enabled", True) and not load_scenario_image():
+        if question.get("image_enabled", True) and not load_scenario_image(question_id):
             if st.button("🔄 Regenerate", help="Generate new image with selected model"):
                 if 'scenario_image' in st.session_state:
                     del st.session_state['scenario_image']
+                # Set the question's prompt for regeneration
+                if question.get("image_prompt"):
+                    st.session_state.current_gen_prompt = question.get("image_prompt")
                 st.rerun()
 
     # Initialize timer and answer state
@@ -174,6 +195,9 @@ def page_completion():
         for key in list(st.session_state.keys()):
             if key not in ['page', 'is_admin']:
                 del st.session_state[key]
+        # Make sure to clear selected question for next participant
+        if 'selected_question' in st.session_state:
+            del st.session_state['selected_question']
         st.session_state.page = "details"
         st.rerun()
 
