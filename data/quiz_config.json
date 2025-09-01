@@ -16,6 +16,13 @@
       "image_enabled": true,
       "image_prompt": "Photorealistic scene of an overturned SAF armoured vehicle on a training road. Modern SAF No.4 pixelated camouflage soldiers present. One soldier checks surroundings for safety, another assists an injured crew member on the ground. Environment shows SAF training area infrastructure, tarmac road, route march context.",
       "id": "q2"
+    },
+    {
+      "scenario_title": "Bunk Cupboard Fall Over",
+      "question_text": "A cupboard tips over and traps a fellow soldier. What immediate actions should you take to ensure your safety, assist the casualty, and prevent further injury?",
+      "image_enabled": true,
+      "image_prompt": "Photorealistic SAF bunk scene. A tall metal cupboard has tipped over onto the floor, causing a safety incident. One NSF soldier lies partially trapped by the fallen cupboard, while another soldier in modern SAF No.4 pixelated camouflage rushes to help. Environment shows SAF bunk beds, personal gear, and training facility setting.",
+      "id": "q3"
     }
   ]
 }

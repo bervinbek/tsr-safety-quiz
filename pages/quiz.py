@@ -86,7 +86,7 @@ def page_quiz_question():
             # First try to load saved image from admin for this question
             saved_image = load_scenario_image(question_id)
             if saved_image:
-                st.image(saved_image, caption=question.get("scenario_title", "Safety Scenario"), use_column_width=True)
+                st.image(saved_image, caption=question.get("scenario_title", "Safety Scenario"), use_container_width=True)
             else:
                 # Generate new image if no saved image exists
                 # Set the question's prompt for generation
@@ -94,7 +94,7 @@ def page_quiz_question():
                     st.session_state.current_gen_prompt = question.get("image_prompt")
                 scenario_image = get_cached_scenario_image()
                 if scenario_image:
-                    st.image(scenario_image, caption=question.get("scenario_title", "Safety Scenario"), use_column_width=True)
+                    st.image(scenario_image, caption=question.get("scenario_title", "Safety Scenario"), use_container_width=True)
     with col2:
         # Only show model selection if no saved image or if image generation is needed
         if question.get("image_enabled", True) and not load_scenario_image(question_id):
