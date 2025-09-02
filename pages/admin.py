@@ -340,7 +340,7 @@ def show_question_editor(question, question_num):
     # Show current image if exists for this question
     current_image = load_scenario_image(question_id)
     if current_image:
-        st.image(current_image, caption=f"Current Scenario Image for Question {question_num}", use_column_width=True)
+        st.image(current_image, caption=f"Current Scenario Image for Question {question_num}", use_container_width=True)
     else:
         st.info("No scenario image saved for this question. Generate one below.")
     
@@ -401,7 +401,7 @@ def show_question_editor(question, question_num):
     preview_key = f'preview_image_{question_id}'
     if preview_key in st.session_state:
         st.markdown("#### Preview Generated Image")
-        st.image(st.session_state[preview_key], caption="Preview - Not Saved Yet", use_column_width=True)
+        st.image(st.session_state[preview_key], caption="Preview - Not Saved Yet", use_container_width=True)
         
         col1, col2 = st.columns(2)
         with col1:
@@ -444,7 +444,7 @@ def preview_quiz():
             if question.get("image_enabled", True):
                 saved_image = load_scenario_image(question_id)
                 if saved_image:
-                    st.image(saved_image, caption=f"Safety Scenario for Question {i}", use_column_width=True)
+                    st.image(saved_image, caption=f"Safety Scenario for Question {i}", use_container_width=True)
                 else:
                     st.info(f"No scenario image saved for Question {i}. Generate one in the Quiz Configuration tab.")
             
